@@ -625,13 +625,13 @@ async function connectToWhatsApp() {
         }
     });
 
-    sock.ev.on('creds.update', saveCreds);
-
-    sock.ev.on('messages.upsert', async ({ messages }) => {
-        try { await procesarMensaje(sock, messages[0]); }
-        catch (e) { console.log('Error procesando mensaje:', e); }
+       sock.ev.on('messages.upsert', async ({ messages }) => {
+        for (const m of messages) {
+            try { await procesarMensaje(sock, m); }
+            catch (e) { console.log('Error procesando mensaje:', e); }
+        }
     });
-}
+
 
 // ============================================================
 // 💬 PROCESAMIENTO DE MENSAJES
@@ -640,7 +640,9 @@ async function procesarMensaje(sock, msg) {
     if (!msg || !msg.message) return;
 
     const jid = msg.key.remoteJid;
-    if (!jid || !jid.endsWith('@g.us')) return;
+    if (!jid || jid === 'status@broadcast') return;
+
+    const esGrupo = jid.endsWith('@g.us');
 
     const textoOriginal = (
         msg.message.conversation ||
@@ -650,17 +652,10 @@ async function procesarMensaje(sock, msg) {
     if (!textoOriginal) return;
     const texto = textoOriginal.toLowerCase();
 
-    if (
-        texto.includes('ticket de despacho') ||
-        texto.includes('licencia profesional') ||
-        texto.includes('reporte de ruta') ||
-        texto.startsWith('⚠️') ||
-        texto.startsWith('📢') ||
-        texto.startsWith('🔴')
-    ) return;
-
     const propioNum = (sock.user?.id || '').split('@')[0].split(':')[0];
-    const senderJid = msg.key.participant || msg.participant || (msg.key.fromMe && propioNum ? `${propioNum}@s.whatsapp.net` : jid);
+    const senderJid = esGrupo
+        ? (msg.key.participant || msg.participant || (msg.key.fromMe && propioNum ? `${propioNum}@s.whatsapp.net` : jid))
+        : (msg.key.fromMe && propioNum ? `${propioNum}@s.whatsapp.net` : jid);
     const senderNumber = senderJid.split('@')[0].split(':')[0];
     const nombreWhatsApp = msg.pushName || `Operador ${senderNumber.slice(-4)}`;
 
@@ -668,6 +663,7 @@ async function procesarMensaje(sock, msg) {
     const claveP = `${jid}:${senderNumber}`;
 
     if (!esComando) {
+        if (msg.key.fromMe) return;
         const pend = pendientesFS[claveP];
         if (pend) {
             if (Date.now() > pend.expira) {
@@ -680,7 +676,10 @@ async function procesarMensaje(sock, msg) {
         return;
     }
 
-    registrarGrupo(jid);
+    if (!esGrupo && senderNumber !== NUMERO_ADMIN && !msg.key.fromMe) return;
+
+    if (esGrupo) registrarGrupo(jid);
+
 
     let esAdmin = senderNumber === NUMERO_ADMIN || msg.key.fromMe;
     if (!esAdmin) {
