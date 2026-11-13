@@ -653,6 +653,7 @@ async function procesarMensaje(sock, msg) {
         msg.message.extendedTextMessage?.text ||
         msg.message.imageMessage?.caption || ''
     ).trim();
+
     if (!textoOriginal) return;
     const texto = textoOriginal.toLowerCase();
 
