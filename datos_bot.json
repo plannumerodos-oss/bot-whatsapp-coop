@@ -1,0 +1,294 @@
+{
+  "unidades": {},
+  "multas": [
+    {
+      "id": 1,
+      "numero": "179749297107133",
+      "nombre": "_DrDonuttt",
+      "monto": 1000,
+      "motivo": "Manejar sin licencia",
+      "puntos": 0,
+      "fecha": "2026-11-13T21:10:23.262Z",
+      "estado": "pendiente",
+      "auto": false,
+      "por": "Martín Reinoso"
+    }
+  ],
+  "contadorMultas": 1,
+  "rutasPorDia": {
+    "2026-11-13": [
+      {
+        "disco": "DisutranS.A.",
+        "numero": "179749297107133",
+        "nombre": "Isaac",
+        "ruta": "R21 Dorado-Itchimbia",
+        "salida": "2026-11-13T20:23:15.194Z",
+        "llegada": "2026-11-13T20:24:11.641Z",
+        "minutos": 0,
+        "atrasoMin": 0,
+        "pago": 0
+      },
+      {
+        "disco": "Disutran",
+        "numero": "179749297107133",
+        "nombre": "Isaac",
+        "ruta": "S.A. R21 Dorado-Itchimbia",
+        "salida": "2026-11-13T20:28:29.916Z",
+        "llegada": "2026-11-13T20:28:46.657Z",
+        "minutos": 0,
+        "atrasoMin": 4,
+        "pago": 0
+      },
+      {
+        "disco": "Fetum",
+        "numero": "179749297107133",
+        "nombre": "Isaac",
+        "ruta": "Linea 13 Mercado los esteros-fuerza aerea-colisa",
+        "salida": "2026-11-13T20:30:50.635Z",
+        "llegada": "2026-11-13T20:59:12.958Z",
+        "minutos": 28,
+        "atrasoMin": 0,
+        "pago": 1.35
+      }
+    ]
+  },
+  "atrasosPorDia": {
+    "2026-11-13": [
+      {
+        "disco": "Disutran",
+        "numero": "179749297107133",
+        "nombre": "Isaac",
+        "programada": "15:24",
+        "real": "15:28",
+        "atrasoMin": 4
+      }
+    ]
+  },
+  "historialFS": [
+    {
+      "fecha": "2026-11-13T03:24:00.053Z",
+      "disco": "13",
+      "numero": "143907174244367",
+      "nombre": "Martín Reinoso",
+      "motivo": "me da pereza",
+      "aprobado": false,
+      "razon": "Es una excusa personal, no una falla ni una emergencia real.",
+      "metodo": "reglas"
+    },
+    {
+      "fecha": "2026-11-13T03:24:24.348Z",
+      "disco": "13",
+      "numero": "143907174244367",
+      "nombre": "Martín Reinoso",
+      "motivo": "daño de motor en la unidad",
+      "aprobado": true,
+      "razon": "Describe una falla o emergencia concreta.",
+      "metodo": "reglas"
+    },
+    {
+      "fecha": "2026-11-13T20:09:16.745Z",
+      "disco": "13",
+      "numero": "143907174244367",
+      "nombre": "Martín Reinoso",
+      "motivo": "nomás, ando aburrido",
+      "aprobado": false,
+      "razon": "Es una excusa personal, no una falla ni una emergencia real.",
+      "metodo": "reglas"
+    },
+    {
+      "fecha": "2026-11-13T20:09:48.262Z",
+      "disco": "nomas",
+      "numero": "143907174244367",
+      "nombre": "Martín Reinoso",
+      "motivo": "Jaja",
+      "aprobado": false,
+      "razon": "La explicación es muy corta o vaga. Indica qué falla o qué pasó exactamente.",
+      "metodo": "reglas"
+    }
+  ],
+  "grupos": [
+    "120363430841010699@g.us",
+    "120363431788025148@g.us"
+  ],
+  "diaActual": "2026-11-13",
+  "avisos": {
+    "inactividad": "2026-11-13"
+  },
+  "billeteras": {
+    "13": {
+      "saldo": 10000
+    },
+    "141463337836590": {
+      "saldo": 10999
+    },
+    "143907174244367": {
+      "saldo": 20008
+    },
+    "179749297107133": {
+      "saldo": 1.35
+    }
+  },
+  "movimientos": [
+    {
+      "id": 1,
+      "fecha": "2026-11-13T20:37:33.995Z",
+      "numero": "13",
+      "tipo": "deposito",
+      "monto": 10000,
+      "detalle": "nomas",
+      "saldo": 10000
+    },
+    {
+      "id": 2,
+      "fecha": "2026-11-13T20:53:47.910Z",
+      "numero": "143907174244367",
+      "tipo": "deposito",
+      "monto": 10,
+      "detalle": "Depósito admin",
+      "saldo": 10
+    },
+    {
+      "id": 3,
+      "fecha": "2026-11-13T20:54:05.611Z",
+      "numero": "141463337836590",
+      "tipo": "deposito",
+      "monto": 1000,
+      "detalle": "Depósito admin",
+      "saldo": 1000
+    },
+    {
+      "id": 4,
+      "fecha": "2026-11-13T20:54:32.784Z",
+      "numero": "143907174244367",
+      "tipo": "deposito",
+      "monto": 9999,
+      "detalle": "Depósito admin",
+      "saldo": 10009
+    },
+    {
+      "id": 5,
+      "fecha": "2026-11-13T20:58:07.430Z",
+      "numero": "141463337836590",
+      "tipo": "deposito",
+      "monto": 9999,
+      "detalle": "Depósito admin",
+      "saldo": 10999
+    },
+    {
+      "id": 6,
+      "fecha": "2026-11-13T20:58:27.739Z",
+      "numero": "143907174244367",
+      "tipo": "deposito",
+      "monto": 9999,
+      "detalle": "Depósito admin",
+      "saldo": 20008
+    },
+    {
+      "id": 7,
+      "fecha": "2026-11-13T20:59:12.958Z",
+      "numero": "179749297107133",
+      "tipo": "ruta",
+      "monto": 1.35,
+      "detalle": "Ruta Disco #Fetum",
+      "saldo": 1.35
+    }
+  ],
+  "contadorMov": 7,
+  "totales": {
+    "pagadoRutas": 1.35,
+    "pagadoDiario": 0,
+    "depositos": 41007,
+    "retiros": 0,
+    "multasCobradas": 0,
+    "premios": 0
+  },
+  "suspendidos": {},
+  "municipal": {
+    "asignados": {},
+    "reiniciadoV2": true,
+    "sembrado": true
+  },
+  "config": {
+    "intervalo": 5,
+    "apertura": "05:00",
+    "cierre": "22:00",
+    "autoHorario": false,
+    "tarifaRuta": 40,
+    "bonoPuntual": 1,
+    "sueldoDiario": 25,
+    "autoPago": false,
+    "exigirCodigo": false
+  },
+  "estado": {
+    "despachoActivo": true,
+    "turnos": [
+      {
+        "disco": "Disutran",
+        "ruta": "S.A. R21 Dorado-Itchimbia",
+        "horaProg": "2026-11-13T20:24:32.686Z",
+        "conductor": "Isaac _(Sin licencia)_",
+        "nombre": "Isaac",
+        "numero": "179749297107133",
+        "jid": "120363430841010699@g.us",
+        "salio": true,
+        "alertaAtraso": true,
+        "salidaReal": "2026-11-13T20:28:29.916Z"
+      },
+      {
+        "disco": "DisutranS.A.",
+        "ruta": "R21 Dorado-Itchimbia",
+        "horaProg": "2026-11-13T20:29:32.686Z",
+        "conductor": "Isaac _(Sin licencia)_",
+        "nombre": "Isaac",
+        "numero": "179749297107133",
+        "jid": "120363430841010699@g.us",
+        "salio": true,
+        "salidaReal": "2026-11-13T20:23:15.194Z"
+      },
+      {
+        "disco": "Fetum",
+        "ruta": "Linea 13 Mercado los esteros-fuerza aerea-colisa",
+        "horaProg": "2026-11-13T20:32:34.746Z",
+        "conductor": "Isaac _(Sin licencia)_",
+        "nombre": "Isaac",
+        "numero": "179749297107133",
+        "jid": "120363430841010699@g.us",
+        "salio": true,
+        "salidaReal": "2026-11-13T20:30:50.635Z"
+      },
+      {
+        "disco": "Fetum",
+        "ruta": "Linea 2 Mercado Los Esteros - Mercado Central Municipal - C.C Pacifico - Museo",
+        "horaProg": "2026-11-13T21:06:26.850Z",
+        "conductor": "Isaac _(Sin licencia)_",
+        "nombre": "Isaac",
+        "numero": "179749297107133",
+        "jid": "120363430841010699@g.us",
+        "salio": true,
+        "salidaReal": "2026-11-13T21:04:48.560Z"
+      }
+    ],
+    "viajes": {
+      "Fetum": {
+        "salida": "2026-11-13T21:04:48.560Z",
+        "numero": "179749297107133",
+        "nombre": "Isaac",
+        "ruta": "Linea 2 Mercado Los Esteros - Mercado Central Municipal - C.C Pacifico - Museo",
+        "atrasoMin": 0,
+        "puntual": true
+      }
+    },
+    "fs": {
+      "13": {
+        "desde": "2026-11-13T20:09:39.505Z",
+        "motivo": "nomás ando aburrido",
+        "numero": "143907174244367",
+        "nombre": "Martín Reinoso",
+        "razon": "Registrado por un administrador",
+        "forzado": true
+      }
+    },
+    "ultimaSalida": "2026-11-13T21:06:26.850Z",
+    "totalDespachos": 4
+  }
+}
