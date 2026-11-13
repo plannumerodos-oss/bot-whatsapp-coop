@@ -933,17 +933,29 @@ async function procesarMensaje(sock, msg) {
                 return responder(`🔴🟢🔵 *UNIDAD REGISTRADA* 🔴🟢🔵\n${fichaUnidad(u)}${avisoMun}`);
             }
 
+            if (['vaciar', 'limpiar', 'borrartodo'].includes(sub)) {
+                if (!esAdmin) return soloAdmin();
+                const total = Object.keys(datos.unidades).length;
+                if (!total) return responder('ℹ️ No hay unidades registradas para borrar.');
+                datos.unidades = {};
+                guardarDatos();
+                return responder(`🗑️ *FLOTA VACIADA*\nSe eliminaron *${total}* unidad(es) registradas.\n_(Si quieres liberar también los códigos municipales usa \`!municipal limpiar\`)_.`);
+            }
+
             if (['eliminar', 'borrar'].includes(sub)) {
-                const u = datos.unidades[resto];
+                const claveReal = Object.keys(datos.unidades).find(k => k.toLowerCase() === resto.trim().toLowerCase());
+                const u = claveReal ? datos.unidades[claveReal] : null;
                 if (!u) return responder(`⚠️ No existe la unidad con registro *${resto || '(vacío)'}*.`);
                 if (!esAdmin && u.registradoPor !== senderNumber) return responder('🔒 Solo un admin o quien registró la unidad puede eliminarla.');
-                delete datos.unidades[resto]; guardarDatos();
-                return responder(`🗑️ Unidad *${resto}* (${u.dueno}) eliminada.${u.disco && codigoDeDisco(u.disco) ? `\n🏛️ _El código municipal ${codigoDeDisco(u.disco)} sigue asignado al Disco #${u.disco}. Un admin puede liberarlo con_ \`!municipal liberar ${codigoDeDisco(u.disco)}\`` : ''}`);
+                delete datos.unidades[claveReal]; guardarDatos();
+                return responder(`🗑️ Unidad *${claveReal}* (${u.dueno}) eliminada.${u.disco && codigoDeDisco(u.disco) ? `\n🏛️ _El código municipal ${codigoDeDisco(u.disco)} sigue asignado al Disco #${u.disco}. Un admin puede liberarlo con_ \`!municipal liberar ${codigoDeDisco(u.disco)}\`` : ''}`);
             }
 
             if (sub === 'editar') {
                 const [reg, campoRaw, ...valP] = resto.split(/\s+/);
-                const u = datos.unidades[reg];
+                const claveReal = Object.keys(datos.unidades).find(k => k.toLowerCase() === (reg || '').toLowerCase());
+                const u = claveReal ? datos.unidades[claveReal] : null;
+
                 if (!u) return responder('⚠️ Uso: `!unidad editar [registro] [dueño|carrocería|chasis|año|disco] [nuevo valor]`');
                 if (!esAdmin && u.registradoPor !== senderNumber) return responder('🔒 Solo un admin o quien registró la unidad puede editarla.');
                 const mapa = { dueno: 'dueno', propietario: 'dueno', carroceria: 'carroceria', chasis: 'chasis', ano: 'ano', disco: 'disco' };
