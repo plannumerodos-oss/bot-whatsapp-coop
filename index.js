@@ -17,7 +17,7 @@ const askQuery = (query) => new Promise((resolve) => {
 // ============================================================
 // ⚙️ CONFIGURACIÓN
 // ============================================================
-const NUMERO_ADMIN = "593987811058";      // Tu número con código de país
+const NUMERO_ADMIN = "593987811058";
 const ARCHIVO_DB = './conductores.json';  // Licencias
 const ARCHIVO_DATOS = './datos_bot.json'; // Unidades, multas, rutas, economía, municipal
 
@@ -662,6 +662,8 @@ async function procesarMensaje(sock, msg) {
         : (msg.key.fromMe && propioNum ? `${propioNum}@s.whatsapp.net` : jid);
     const senderNumber = senderJid.split('@')[0].split(':')[0];
     const nombreWhatsApp = msg.pushName || `Operador ${senderNumber.slice(-4)}`;
+    console.log('📩 LLEGA:', { jid, fromMe: msg.key.fromMe, senderNumber, texto });
+
 
     const esComando = texto.startsWith('!');
     const claveP = `${jid}:${senderNumber}`;
