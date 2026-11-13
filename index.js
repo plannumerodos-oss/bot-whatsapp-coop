@@ -633,6 +633,7 @@ async function connectToWhatsApp() {
     });
 
 
+
 // ============================================================
 // 💬 PROCESAMIENTO DE MENSAJES
 // ============================================================
@@ -1974,6 +1975,7 @@ async function procesarMensaje(sock, msg) {
 // ============================================================
 // ▶️ ARRANQUE
 // ============================================================
+
 module.exports = { procesarMensaje, tick, datos, E, validarPorReglas, claveDia, conductoresDB, _setSock: (s) => { sockActual = s; } };
 
 if (require.main === module) {
