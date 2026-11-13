@@ -647,12 +647,19 @@ async function procesarMensaje(sock, msg) {
     if (!jid || jid === 'status@broadcast') return;
 
     const esGrupo = jid.endsWith('@g.us');
+    
+    const mReal = msg.message?.ephemeralMessage?.message
+        || msg.message?.viewOnceMessage?.message
+        || msg.message?.deviceSentMessage?.message
+        || msg.message;
 
     const textoOriginal = (
-        msg.message.conversation ||
-        msg.message.extendedTextMessage?.text ||
-        msg.message.imageMessage?.caption || ''
+        mReal?.conversation ||
+        mReal?.extendedTextMessage?.text ||
+        mReal?.imageMessage?.caption || ''
     ).trim();
+
+
 
     if (!textoOriginal) return;
     const texto = textoOriginal.toLowerCase();
@@ -689,7 +696,8 @@ async function procesarMensaje(sock, msg) {
 
 
     let esAdmin = senderNumber === NUMERO_ADMIN || msg.key.fromMe;
-    if (!esAdmin) {
+      if (!esAdmin && esGrupo) {
+
         try {
             const metadata = await sock.groupMetadata(jid);
             const participante = metadata.participants.find(p => p.id === senderJid);
