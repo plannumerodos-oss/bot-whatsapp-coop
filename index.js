@@ -1981,3 +1981,11 @@ if (require.main === module) {
     connectToWhatsApp().catch((err) => console.log('Error:', err));
     setInterval(tick, 30000);
 }
+
+const http = require('http');
+const PORT = process.env.PORT || 3000;
+
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Bot activo');
+}).listen(PORT, () => console.log(`Servidor web escuchando en puerto ${PORT}`));
