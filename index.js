@@ -629,8 +629,11 @@ async function connectToWhatsApp() {
         for (const m of messages) {
             try { await procesarMensaje(sock, m); }
             catch (e) { console.log('Error procesando mensaje:', e); }
-        }
+            }
     });
+
+    sock.ev.on('creds.update', saveCreds);
+}
 
 
 
