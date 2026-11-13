@@ -1,0 +1,100 @@
+{
+  "unidades": {},
+  "multas": [],
+  "contadorMultas": 0,
+  "rutasPorDia": {},
+  "atrasosPorDia": {},
+  "historialFS": [
+    {
+      "fecha": "2026-11-13T03:24:00.053Z",
+      "disco": "13",
+      "numero": "143907174244367",
+      "nombre": "Martín Reinoso",
+      "motivo": "me da pereza",
+      "aprobado": false,
+      "razon": "Es una excusa personal, no una falla ni una emergencia real.",
+      "metodo": "reglas"
+    },
+    {
+      "fecha": "2026-11-13T03:24:24.348Z",
+      "disco": "13",
+      "numero": "143907174244367",
+      "nombre": "Martín Reinoso",
+      "motivo": "daño de motor en la unidad",
+      "aprobado": true,
+      "razon": "Describe una falla o emergencia concreta.",
+      "metodo": "reglas"
+    },
+    {
+      "fecha": "2026-11-13T20:09:16.745Z",
+      "disco": "13",
+      "numero": "143907174244367",
+      "nombre": "Martín Reinoso",
+      "motivo": "nomás, ando aburrido",
+      "aprobado": false,
+      "razon": "Es una excusa personal, no una falla ni una emergencia real.",
+      "metodo": "reglas"
+    },
+    {
+      "fecha": "2026-11-13T20:09:48.262Z",
+      "disco": "nomas",
+      "numero": "143907174244367",
+      "nombre": "Martín Reinoso",
+      "motivo": "Jaja",
+      "aprobado": false,
+      "razon": "La explicación es muy corta o vaga. Indica qué falla o qué pasó exactamente.",
+      "metodo": "reglas"
+    }
+  ],
+  "grupos": [
+    "120363430841010699@g.us",
+    "120363431788025148@g.us"
+  ],
+  "diaActual": "2026-11-13",
+  "avisos": {
+    "inactividad": "2026-11-13"
+  },
+  "billeteras": {},
+  "movimientos": [],
+  "contadorMov": 0,
+  "totales": {
+    "pagadoRutas": 0,
+    "pagadoDiario": 0,
+    "depositos": 0,
+    "retiros": 0,
+    "multasCobradas": 0
+  },
+  "municipal": {
+    "asignados": {},
+    "reiniciadoV2": true,
+    "sembrado": true
+  },
+  "config": {
+    "intervalo": 5,
+    "apertura": "05:00",
+    "cierre": "22:00",
+    "autoHorario": false,
+    "tarifaRuta": 3,
+    "bonoPuntual": 1,
+    "sueldoDiario": 25,
+    "autoPago": false,
+    "exigirCodigo": false
+  },
+  "estado": {
+    "despachoActivo": true,
+    "turnos": [],
+    "viajes": {},
+    "fs": {
+      "13": {
+        "desde": "2026-11-13T20:09:39.505Z",
+        "motivo": "nomás ando aburrido",
+        "numero": "143907174244367",
+        "nombre": "Martín Reinoso",
+        "razon": "Registrado por un administrador",
+        "forzado": true
+      }
+    },
+    "ultimaSalida": null,
+    "totalDespachos": 0
+  }
+}
