@@ -660,11 +660,13 @@ async function procesarMensaje(sock, msg) {
     ).trim();
 
 
+       const propioNum = (sock.user?.id || '').split('@').split(':');
+    const senderJid = (msg.key.fromMe && propioNum)
+        ? `${propioNum}@s.whatsapp.net`
+        : (esGrupo ? (msg.key.participant || msg.participant || jid) : jid);
+    const senderNumber = msg.key.fromMe ? NUMERO_ADMIN : senderJid.split('@').split(':');
 
-    if (!textoOriginal) return;
-    const texto = textoOriginal.toLowerCase();
 
-    const propioNum = (sock.user?.id || '').split('@')[0].split(':')[0];
     const senderJid = esGrupo
         ? (msg.key.participant || msg.participant || (msg.key.fromMe && propioNum ? `${propioNum}@s.whatsapp.net` : jid))
         : (msg.key.fromMe && propioNum ? `${propioNum}@s.whatsapp.net` : jid);
@@ -705,13 +707,21 @@ async function procesarMensaje(sock, msg) {
         } catch (e) {}
     }
 
-    const comando = textoOriginal.split(/\s/)[0].toLowerCase();
+       const comando = textoOriginal.split(/\s/).toLowerCase();
     const args = textoOriginal.slice(comando.length).trim();
-    const responder = (t) => sock.sendMessage(jid, { text: t }, { quoted: msg });
+    const responder = async (t) => {
+        try {
+            if (msg.key.fromMe) return await sock.sendMessage(jid, { text: t });
+            return await sock.sendMessage(jid, { text: t }, { quoted: msg });
+        } catch (e) {
+            return await sock.sendMessage(jid, { text: t });
+        }
+    };
     const soloAdmin = () => responder('🔒 Este comando es solo para *administradores*.');
     const perfil = conductoresDB[senderNumber];
     const nombreConductor = perfil ? perfil.nombre : nombreWhatsApp;
-    const mencionados = msg.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+    const mencionados = mReal?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+
     // 👤 Busca conductores por el NOMBRE de su licencia (sin tildes, parcial y en cualquier orden)
     const buscarConductoresPorNombre = (txt) => {
         const q = normalizar(txt).trim();
