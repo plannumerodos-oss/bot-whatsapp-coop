@@ -603,16 +603,20 @@ async function connectToWhatsApp() {
     });
     sockActual = sock;
 
-    if (!sock.authState.creds.registered) {
-        const phoneNumber = await askQuery('Ingresa tu número de WhatsApp con código de país (ej: 593999999999): ');
+       if (!sock.authState.creds.registered) {
         setTimeout(async () => {
-            let code = await sock.requestPairingCode(phoneNumber.trim());
-            code = code?.match(/.{1,4}/g)?.join('-') || code;
-            console.log(`\n========================================`);
-            console.log(`TU CÓDIGO DE EMPAREJAMIENTO ES: ${code}`);
-            console.log(`========================================\n`);
-        }, 3000);
+            try {
+                let code = await sock.requestPairingCode(NUMERO_ADMIN);
+                code = code?.match(/.{1,4}/g)?.join('-') || code;
+                console.log(`\n========================================`);
+                console.log(`TU CÓDIGO DE EMPAREJAMIENTO ES: ${code}`);
+                console.log(`========================================\n`);
+            } catch (e) {
+                console.log('Error pidiendo código:', e.message);
+            }
+        }, 4000);
     }
+
 
         sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
