@@ -614,16 +614,22 @@ async function connectToWhatsApp() {
         }, 3000);
     }
 
-    sock.ev.on('connection.update', (update) => {
+        sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect?.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) setTimeout(connectToWhatsApp, 3000);
+            const code = (lastDisconnect?.error instanceof Boom)?.output?.statusCode;
+            console.log('⚠️ Conexión cerrada. Código:', code, lastDisconnect?.error?.message || '');
+            if (code !== DisconnectReason.loggedOut) {
+                setTimeout(connectToWhatsApp, 3000);
+            } else {
+                console.log('❌ SESIÓN CERRADA POR WHATSAPP (loggedOut). Debes volver a vincular.');
+            }
         } else if (connection === 'open') {
             console.log('\n🚀 ¡Central de Despachos PRO conectada!\n');
             tick();
         }
     });
+
 
        sock.ev.on('messages.upsert', async ({ messages }) => {
         for (const m of messages) {
