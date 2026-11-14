@@ -658,6 +658,8 @@ async function procesarMensaje(sock, msg) {
         mReal?.extendedTextMessage?.text ||
         mReal?.imageMessage?.caption || ''
     ).trim();
+    if (!textoOriginal) return;
+    const texto = textoOriginal.toLowerCase();
 
 
         const propioNum = (sock.user?.id || '').split('@')[0].split(':')[0];
