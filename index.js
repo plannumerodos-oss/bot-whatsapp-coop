@@ -704,7 +704,8 @@ async function procesarMensaje(sock, msg) {
         } catch (e) {}
     }
 
-       const comando = textoOriginal.split(/\s/).toLowerCase();
+    const comando = textoOriginal.split(/\s/)[0].toLowerCase();
+
     const args = textoOriginal.slice(comando.length).trim();
     const responder = async (t) => {
         try {
