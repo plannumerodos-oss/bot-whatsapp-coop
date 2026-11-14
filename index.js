@@ -18,6 +18,7 @@ const askQuery = (query) => new Promise((resolve) => {
 // ⚙️ CONFIGURACIÓN
 // ============================================================
 const NUMERO_ADMIN = "593987811058";
+const GRUPO_PERMITIDO = "120363436841810690@g.us";
 const ARCHIVO_DB = './conductores.json';  // Licencias
 const ARCHIVO_DATOS = './datos_bot.json'; // Unidades, multas, rutas, economía, municipal
 
@@ -209,11 +210,10 @@ function registrarGrupo(jid) {
 }
 async function anunciar(texto) {
     if (!sockActual) return;
-    for (const g of datos.grupos) {
-        try { await sockActual.sendMessage(g, { text: texto }); }
-        catch (e) { console.log('No pude anunciar en', g, '-', e.message); }
-    }
+    try { await sockActual.sendMessage(GRUPO_PERMITIDO, { text: texto }); }
+    catch (e) { console.log('No pude anunciar en', GRUPO_PERMITIDO, '-', e.message); }
 }
+
 
 // ============================================================
 // 🧾 MULTAS Y PUNTOS
@@ -642,8 +642,30 @@ async function connectToWhatsApp() {
             }
     });
 
-    sock.ev.on('creds.update', saveCreds);
-}
+        sock.ev.on('group-participants.update', async (evento) => {
+        if (evento.id !== GRUPO_PERMITIDO) return;
+
+        for (const participante of evento.participants) {
+            const numero = participante.replace('@s.whatsapp.net', '');
+
+
+  
+
+
+            if (evento.action === 'add') {
+                await sock.sendMessage(evento.id, {
+                    text: `🔴🟢🔵 *¡BIENVENIDO A LA CENTRAL!* 🔴🟢🔵\n━━━━━━━━━━━━━━━━━━━━\n👋 Hola @${numero}, bienvenido a nuestra cooperativa.\n🪪 Registra tu licencia con \`!licencia Nombre | Tipo | Disco\`\n📋 Mira todos los comandos con \`!menu\`.`,
+                    mentions: [participante]
+                });
+            } else if (evento.action === 'remove') {
+                await sock.sendMessage(evento.id, {
+                    text: `🔴🟢🔵 *HASTA PRONTO* 🔴🟢🔵\n━━━━━━━━━━━━━━━━━━━━\n👋 @${numero} ha salido del grupo. ¡Éxitos en sus rutas! 🚌💨`,
+                    mentions: [participante]
+                });
+            }
+        }
+    });
+
 
 
 
@@ -651,13 +673,15 @@ async function connectToWhatsApp() {
 // 💬 PROCESAMIENTO DE MENSAJES
 // ============================================================
 async function procesarMensaje(sock, msg) {
+
     if (!msg || !msg.message) return;
 
     const jid = msg.key.remoteJid;
     if (!jid || jid === 'status@broadcast') return;
 
     const esGrupo = jid.endsWith('@g.us');
-    
+        if (jid !== GRUPO_PERMITIDO) return;
+
     const mReal = msg.message?.ephemeralMessage?.message
         || msg.message?.viewOnceMessage?.message
         || msg.message?.deviceSentMessage?.message
