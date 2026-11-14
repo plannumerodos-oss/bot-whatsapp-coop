@@ -660,18 +660,13 @@ async function procesarMensaje(sock, msg) {
     ).trim();
 
 
-       const propioNum = (sock.user?.id || '').split('@').split(':');
+        const propioNum = (sock.user?.id || '').split('@')[0].split(':')[0];
     const senderJid = (msg.key.fromMe && propioNum)
         ? `${propioNum}@s.whatsapp.net`
         : (esGrupo ? (msg.key.participant || msg.participant || jid) : jid);
-    const senderNumber = msg.key.fromMe ? NUMERO_ADMIN : senderJid.split('@').split(':');
-
-
-    const senderJid = esGrupo
-        ? (msg.key.participant || msg.participant || (msg.key.fromMe && propioNum ? `${propioNum}@s.whatsapp.net` : jid))
-        : (msg.key.fromMe && propioNum ? `${propioNum}@s.whatsapp.net` : jid);
-    const senderNumber = senderJid.split('@')[0].split(':')[0];
+    const senderNumber = msg.key.fromMe ? NUMERO_ADMIN : senderJid.split('@')[0].split(':')[0];
     const nombreWhatsApp = msg.pushName || `Operador ${senderNumber.slice(-4)}`;
+
     console.log('📩 LLEGA:', { jid, fromMe: msg.key.fromMe, senderNumber, texto });
 
 
