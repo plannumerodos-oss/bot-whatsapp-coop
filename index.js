@@ -668,12 +668,13 @@ async function connectToWhatsApp() {
     });
 
 
-       sock.ev.on('messages.upsert', async ({ messages }) => {
+           sock.ev.on('messages.upsert', async ({ messages }) => {
         for (const m of messages) {
             try { await procesarMensaje(sock, m); }
             catch (e) { console.log('Error procesando mensaje:', e); }
-            }
+        }
     });
+
 
          sock.ev.on('group-participants.update', async (evento) => {
         console.log('👥 EVENTO GRUPO:', JSON.stringify(evento));
