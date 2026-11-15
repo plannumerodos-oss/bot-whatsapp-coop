@@ -205,16 +205,43 @@ if (!datos.municipal.reiniciadoV2) {
 let sockActual = null;
 const pendientesFS = {};
 
+const cacheAdminGrupo = new Map();
+
+async function soyAdminDelGrupo(sock, jid) {
+    if (!sock || !jid || !jid.endsWith('@g.us')) return false;
+    const ahora = Date.now();
+    const guardado = cacheAdminGrupo.get(jid);
+    if (guardado && (ahora - guardado.ts) < 60000) return guardado.esAdmin;
+
+    try {
+        const meta = await sock.groupMetadata(jid);
+        const propioLid = (sock.user?.lid || '').replace(/@.*$/, '').replace(/:.*$/, '');
+        const p = meta.participants.find(x => {
+            const id = (x.id || '').replace(/@.*$/, '').replace(/:.*$/, '');
+            const pn = (x.phoneNumber || '').replace(/@.*$/, '').replace(/:.*$/, '');
+            return id === NUMERO_ADMIN || pn === NUMERO_ADMIN || (propioLid && id === propioLid);
+        });
+        const esAdmin = Boolean(p && (p.admin === 'admin' || p.admin === 'superadmin'));
+        cacheAdminGrupo.set(jid, { esAdmin, ts: ahora });
+        return esAdmin;
+    } catch (e) {
+        return false;
+    }
+}
+
 function registrarGrupo(jid) {
     if (!datos.grupos.includes(jid)) { datos.grupos.push(jid); guardarDatos(); }
 }
+
 async function anunciar(texto) {
     if (!sockActual) return;
     for (const jid of datos.grupos) {
+        if (!(await soyAdminDelGrupo(sockActual, jid))) continue;
         try { await sockActual.sendMessage(jid, { text: texto }); }
         catch (e) { console.log('No pude anunciar en', jid, '-', e.message); }
     }
 }
+
 
 
 
@@ -650,6 +677,7 @@ async function connectToWhatsApp() {
 
          sock.ev.on('group-participants.update', async (evento) => {
         console.log('👥 EVENTO GRUPO:', JSON.stringify(evento));
+        if (!(await soyAdminDelGrupo(sock, evento.id))) return;
 
         for (const p of evento.participants) {
             const participante = typeof p === 'string' ? p : (p.id || p.jid || '');
@@ -688,6 +716,11 @@ async function procesarMensaje(sock, msg) {
     if (!jid || jid === 'status@broadcast') return;
 
     const esGrupo = jid.endsWith('@g.us');
+    v
+    if (esGrupo && !(await soyAdminDelGrupo(sock, jid))) {
+        datos.grupos = datos.grupos.filter(g => g !== jid);
+        return;
+    }
 
 
     const mReal = msg.message?.ephemeralMessage?.message
