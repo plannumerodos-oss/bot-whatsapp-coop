@@ -645,15 +645,13 @@ async function connectToWhatsApp() {
             }
     });
 
-        sock.ev.on('group-participants.update', async (evento) => {
-        if (evento.id !== GRUPO_PERMITIDO) return;
+         sock.ev.on('group-participants.update', async (evento) => {
+        console.log('👥 EVENTO GRUPO:', JSON.stringify(evento));
 
-        for (const participante of evento.participants) {
-            const numero = participante.replace('@s.whatsapp.net', '');
-
-
-  
-
+        for (const p of evento.participants) {
+            const participante = typeof p === 'string' ? p : (p.id || p.jid || '');
+            if (!participante) continue;
+            const numero = participante.replace('@s.whatsapp.net', '').replace('@lid', '');
 
             if (evento.action === 'add') {
                 await sock.sendMessage(evento.id, {
@@ -665,6 +663,10 @@ async function connectToWhatsApp() {
                     text: `🔴🟢🔵 *HASTA PRONTO* 🔴🟢🔵\n━━━━━━━━━━━━━━━━━━━━\n👋 @${numero} ha salido del grupo. ¡Éxitos en sus rutas! 🚌💨`,
                     mentions: [participante]
                 });
+            }
+        }
+    });
+
             }
         }
     });
@@ -685,7 +687,7 @@ async function procesarMensaje(sock, msg) {
     if (!jid || jid === 'status@broadcast') return;
 
     const esGrupo = jid.endsWith('@g.us');
-        if (jid !== GRUPO_PERMITIDO) return;
+
 
     const mReal = msg.message?.ephemeralMessage?.message
         || msg.message?.viewOnceMessage?.message
