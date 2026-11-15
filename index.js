@@ -717,7 +717,7 @@ async function procesarMensaje(sock, msg) {
     if (!jid || jid === 'status@broadcast') return;
 
     const esGrupo = jid.endsWith('@g.us');
-    v
+   
     if (esGrupo && !(await soyAdminDelGrupo(sock, jid))) {
         datos.grupos = datos.grupos.filter(g => g !== jid);
         return;
