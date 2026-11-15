@@ -702,8 +702,8 @@ async function procesarMensaje(sock, msg) {
     if (!textoOriginal) return;
     const texto = textoOriginal.toLowerCase();
 
+    const propioNum = (sock.user?.id || '').replace(/@.*$/, '').replace(/:.*$/, '');
 
-        const propioNum = (sock.user?.id || '').split('@')[0].split(':')[0];
     const senderJid = (msg.key.fromMe && propioNum)
         ? `${propioNum}@s.whatsapp.net`
         : (esGrupo ? (msg.key.participant || msg.participant || jid) : jid);
