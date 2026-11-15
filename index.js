@@ -210,9 +210,12 @@ function registrarGrupo(jid) {
 }
 async function anunciar(texto) {
     if (!sockActual) return;
-    try { await sockActual.sendMessage(GRUPO_PERMITIDO, { text: texto }); }
-    catch (e) { console.log('No pude anunciar en', GRUPO_PERMITIDO, '-', e.message); }
+    for (const jid of datos.grupos) {
+        try { await sockActual.sendMessage(jid, { text: texto }); }
+        catch (e) { console.log('No pude anunciar en', jid, '-', e.message); }
+    }
 }
+
 
 
 // ============================================================
