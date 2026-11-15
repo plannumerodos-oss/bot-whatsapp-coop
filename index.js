@@ -594,13 +594,16 @@ async function tick() {
 // ============================================================
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('sesion_bot');
+    const groupCache = new Map();
 
     const sock = makeWASocket({
         auth: state,
+        cachedGroupMetadata: async (jid) => groupCache.get(jid),
         printQRInTerminal: false,
         browser: Browsers.macOS('Chrome'),
         logger: pino({ level: 'silent' })
     });
+
     sockActual = sock;
 
        if (!sock.authState.creds.registered) {
