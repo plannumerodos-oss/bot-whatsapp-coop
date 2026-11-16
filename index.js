@@ -650,7 +650,7 @@ async function connectToWhatsApp() {
         }, 4000);
     }
 
-
+    
         sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
