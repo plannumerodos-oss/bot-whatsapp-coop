@@ -914,19 +914,29 @@ async function procesarMensaje(sock, msg) {
             return responder(t + `━━━━━━━━━━━━━━━━━━━━\n✅ Pagos acreditados en billeteras.`);
         }
 
-        // ==========================================
+                // ==========================================
         // 🪪 LICENCIAS
         // ==========================================
         case '!licencia':
         case '!registrar': {
             const partes = args.split('|').map(p => p.trim());
-            if (partes.length < 2) {
-                return responder('⚠️ *FORMATO DE REGISTRO*\nUsa: `!licencia Nombre Completo | Categoría | Disco`\n_Ej:_ `!licencia Martín Reinoso | Tipo E | 12`');
+            if (partes.length < 3) {
+                return responder('⚠️ *FORMATO DE REGISTRO*\nUsa: `!licencia Nombre Completo | Categoría | Disco1, Disco2, Disco3`\n_Ej:_ `!licencia Martín Reinoso | Tipo E | 12, 45`\n*(Mínimo 1 disco obligatorio, máximo 3 discos opcionales)*');
             }
-            const nombreCompleto = partes[0];
-            const categoria = partes[1] || 'Tipo E';
-            const discoHabitual = partes[2] || 'S/N';
+            const nombreCompleto = partes.at(0);
+            const categoria = partes.at(1) || 'Tipo E';
+            
+            const discosRaw = partes.at(2).split(/[\s,;-]+/).map(d => d.replace('#', '').trim()).filter(Boolean);
+            const discosUnicos = [...new Set(discosRaw)];
 
+            if (discosUnicos.length === 0) {
+                return responder('⚠️ Debes ingresar **al menos 1 disco** obligatorio.\n_Ej:_ `!licencia Martín Reinoso | Tipo E | 12`');
+            }
+            if (discosUnicos.length > 3) {
+                return responder('⚠️ Solo puedes registrar un **máximo de 3 discos** en tu licencia.');
+            }
+
+            const discosTexto = discosUnicos.map(d => `#${d}`).join(', ');
             const hoy = new Date();
             const caducidad = new Date(hoy);
             caducidad.setFullYear(hoy.getFullYear() + 1);
@@ -935,7 +945,8 @@ async function procesarMensaje(sock, msg) {
                 nombre: nombreCompleto,
                 telefono: senderNumber,
                 categoria,
-                disco: discoHabitual,
+                disco: discosUnicos.at(0),
+                discos: discosUnicos,
                 emision: hoy.toISOString(),
                 caducidad: caducidad.toISOString(),
                 puntos: conductoresDB[senderNumber]?.puntos ?? PUNTOS_INICIALES
@@ -946,7 +957,7 @@ async function procesarMensaje(sock, msg) {
 
             try {
                 const promptIA = encodeURIComponent('official modern transport bus driver license ID card, transit agency badge, clean graphic design, gold and blue security hologram, high resolution');
-                const urlImagenIA = `https://image.pollinations.ai/prompt/${promptIA}?width=800&height=500&nologo=true&seed=${senderNumber}`;
+                const urlImagenIA = `https://pollinations.ai{promptIA}?width=800&height=500&nologo=true&seed=${senderNumber}`;
                 const response = await axios.get(urlImagenIA, { responseType: 'arraybuffer', timeout: 60000 });
                 const bufferImagen = Buffer.from(response.data);
 
@@ -956,30 +967,54 @@ async function procesarMensaje(sock, msg) {
                     `👤 *Titular:* ${nombreCompleto}\n` +
                     `📱 *Teléfono:* +${senderNumber}\n` +
                     `🏅 *Categoría:* ${categoria}\n` +
-                    `🔢 *Unidad:* Disco #${discoHabitual}\n` +
+                    `🔢 *Unidades:* ${discosTexto}\n` +
                     `⏳ *Válida Hasta:* *${formatearFecha(caducidad)}*\n` +
                     `🟢 *Estado:* VIGENTE\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━━`;
                 return sock.sendMessage(jid, { image: bufferImagen, caption: textoLicencia }, { quoted: msg });
             } catch (error) {
-                return responder(`✅ *Conductor Registrado:* ${nombreCompleto}\n📅 *Vigencia hasta:* ${formatearFecha(caducidad)}`);
+                return responder(`✅ *Conductor Registrado:* ${nombreCompleto}\n🔢 *Unidades:* ${discosTexto}\n📅 *Vigencia hasta:* ${formatearFecha(caducidad)}`);
             }
+        }
+
+        case '!borrarlicencia':
+        case '!eliminarlicencia': {
+            if (!conductoresDB[senderNumber]) {
+                return responder('⚠️ No tienes ninguna licencia registrada para eliminar.');
+            }
+            const nombreBorrado = conductoresDB[senderNumber].nombre;
+            delete conductoresDB[senderNumber];
+            guardarDB();
+            return responder(`🗑️ Tu licencia a nombre de *${nombreBorrado}* ha sido eliminada del sistema.`);
+        }
+
+        case '!limpiarlicencias':
+        case '!vaciarlicencias': {
+            if (!esAdmin) return soloAdmin();
+            const total = Object.keys(conductoresDB).length;
+            if (!total) return responder('ℹ️ No hay licencias registradas para borrar.');
+            conductoresDB = {};
+            guardarDB();
+            return responder(`🗑️ *BASE DE LICENCIAS VACIADA*\nSe eliminaron *${total}* licencia(s) de todos los conductores.`);
         }
 
         case '!milicencia':
         case '!miperfil': {
-            if (!perfil) return responder('⚠️ No tienes licencia registrada. Usa `!licencia Tu Nombre | Tipo E | Disco`');
+            if (!perfil) return responder('⚠️ No tienes licencia registrada. Usa `!licencia Tu Nombre | Tipo E | Disco1, Disco2`');
             const ahora = new Date();
             const fechaCad = new Date(perfil.caducidad);
             const estaVigente = ahora <= fechaCad;
             const diasRestantes = Math.ceil((fechaCad - ahora) / (1000 * 60 * 60 * 24));
             const pendientes = datos.multas.filter(m => m.numero === senderNumber && m.estado === 'pendiente').length;
+            const listaDiscos = perfil.discos ? perfil.discos.map(d => `#${d}`).join(', ') : `#${perfil.disco}`;
             return responder(
                 `🔴🟢🔵 *CREDENCIAL* 🔴🟢🔵\n━━━━━━━━━━━━━━━━━━━━\n👤 *Nombre:* ${perfil.nombre}\n🏅 *Categoría:* ${perfil.categoria}\n` +
+                `🔢 *Unidades asignadas:* ${listaDiscos}\n` +
                 `⏳ *Caducidad:* ${formatearFecha(fechaCad)}\n📊 *Estado:* ${estaVigente ? `🟢 VIGENTE (${diasRestantes} días)` : '🔴 CADUCADA'}\n` +
                 `🏅 *Puntos:* ${perfil.puntos ?? PUNTOS_INICIALES}\n🧾 *Multas pendientes:* ${pendientes}\n` +
                 `💰 *Saldo:* ${dinero(billetera(senderNumber).saldo)}\n━━━━━━━━━━━━━━━━━━━━`);
         }
+
 
         // ==========================================
         // 🚌 UNIDADES Y RELEVOS
@@ -996,6 +1031,57 @@ async function procesarMensaje(sock, msg) {
                 if (faltan.length) return responder(`⚠️ Faltan datos: *${faltan.map(k => etiquetas[k]).join(', ')}*\n\n${AYUDA_UNIDAD}`);
                 if (!/^[\w-]{1,12}$/.test(c.registro)) return responder('⚠️ El *registro* solo puede tener letras, números y guiones (máx. 12).');
                 if (!anoValido(c.ano)) return responder('⚠️ Año inválido. Usa 4 dígitos, ej: *2024*.');
+                        case '!pagar': {
+            const arg = normalizar(args).replace('#', '').trim();
+            const esMia = (m) => m.numero === senderNumber || (perfil && normalizar(m.nombre) === normalizar(perfil.nombre));
+            const pendientes = datos.multas.filter(m => esMia(m) && m.estado === 'pendiente');
+            const saldo = billetera(senderNumber).saldo;
+
+            if (!arg) return responder(`⚠️ Uso: \`!pagar [ID]\` o \`!pagar todas\`\n💵 Tu saldo: *${dinero(saldo)}*`);
+
+            if (arg === 'todas' || arg === 'todo') {
+                if (!pendientes.length) return responder('✅ No tienes multas pendientes.');
+                const pagadas = [];
+                for (const m of pendientes) {
+                    if (billetera(senderNumber).saldo < m.monto) break;
+                    movimiento(senderNumber, 'multa', -m.monto, `Pago de multa #${m.id}`);
+                    m.estado = 'pagada';
+                    m.pagadoCon = 'saldo';
+                    m.cerradaPor = nombreConductor;
+                    m.fechaCierre = new Date().toISOString();
+                    datos.totales.multasCobradas = redondear(datos.totales.multasCobradas + m.monto);
+                    pagadas.push(m);
+                }
+                guardarDatos();
+                if (!pagadas.length) {
+                    const necesaria = pendientes.at(0).monto;
+                    return responder(`⚠️ *Saldo insuficiente.*\nTienes *${dinero(saldo)}* y la primera multa cuesta *${dinero(necesaria)}*.`);
+                }
+                const total = redondear(pagadas.reduce((s, m) => s + m.monto, 0));
+                return responder(
+                    `🔴🟢🔵 *MULTAS PAGADAS* 🔴🟢🔵\n━━━━━━━━━━━━━━━━━━━━\n${pagadas.map(m => `✅ #${m.id} — ${dinero(m.monto)}`).join('\n')}\n` +
+                    `━━━━━━━━━━━━━━━━━━━━\n💸 *Total pagado:* ${dinero(total)}\n💵 *Saldo:* ${dinero(billetera(senderNumber).saldo)}`);
+            }
+
+            const id = parseInt(arg, 10);
+            if (isNaN(id)) return responder('⚠️ Indica el número de ID de la multa o escribe `!pagar todas`.');
+            const m = datos.multas.find(x => x.id === id);
+            if (!m || !esMia(m)) return responder(`⚠️ No encontré ninguna multa tuya con el ID *#${id}*.`);
+            if (m.estado !== 'pendiente') return responder(`ℹ️ La multa #${id} ya está *${m.estado}*.`);
+            if (saldo < m.monto) {
+                return responder(`⚠️ *Saldo insuficiente.*\nLa multa #${id} cuesta *${dinero(m.monto)}* y tienes *${dinero(saldo)}*.`);
+            }
+
+            movimiento(senderNumber, 'multa', -m.monto, `Pago de multa #${m.id}`);
+            m.estado = 'pagada';
+            m.pagadoCon = 'saldo';
+            m.cerradaPor = nombreConductor;
+            m.fechaCierre = new Date().toISOString();
+            datos.totales.multasCobradas = redondear(datos.totales.multasCobradas + m.monto);
+            guardarDatos();
+            return responder(`🟢 *MULTA PAGADA* #${m.id}\n💵 Saldo restante: *${dinero(billetera(senderNumber).saldo)}*`);
+        }
+
                 if (datos.unidades[c.registro]) return responder(`⚠️ Ya existe una unidad con el registro *${c.registro}*.`);
                 const disco = (c.disco || '').replace('#', '').trim();
                 if (disco && buscarUnidadPorDisco(disco)) return responder(`⚠️ El Disco *#${disco}* ya está asignado a otra unidad.`);
@@ -1697,15 +1783,15 @@ async function procesarMensaje(sock, msg) {
             return responder(t.trim());
         }
 
-        case '!menu':
+               case '!menu':
         case '!ayuda': {
             let menu =
                 `🔴🟢🔵 *CENTRAL DE DESPACHOS PRO* 🔴🟢🔵\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
                 `🎫 *Despachos:*\n  • \`!turno [Disco] [Ruta]\` ➔ Pide tu turno.\n  • \`!lista\` ➔ Unidades en espera.\n  • \`!siguiente\` ➔ Próximo bus en salir.\n  • \`!anular [Disco]\` ➔ Cancela tu turno en espera.\n  • \`!estado\` ➔ Estado actual de la flota.\n  • \`!enruta\` ➔ Unidades que están en ruta.\n\n` +
                 `⏱️ *Control de ruta:*\n  • \`!salida [Disco]\` ➔ Notifica tu salida.\n  • \`!llegada [Disco]\` (o \`!fin\`) ➔ Finaliza y mide el tiempo.\n  • \`!novedad [mensaje]\` ➔ Reporta incidente en vía.\n\n` +
                 `📊 *Estadísticas:*\n  • \`!rutas\` / \`!rutas ayer\` ➔ Ranking de rutas.\n  • \`!semana\` ➔ Ranking de los últimos 7 días.\n  • \`!resumen\` ➔ Resumen del día.\n  • \`!misrutas\` ➔ Tus rutas.\n  • \`!atrasos\` ➔ Salidas tardías de hoy.\n\n` +
-                `🪪 *Licencias y perfil:*\n  • \`!licencia Nombre | Tipo | Disco\` ➔ Crea tu licencia con IA.\n  • \`!milicencia\` ➔ Vigencia y puntos.\n  • \`!perfil\` ➔ Tu resumen completo (saldo, multas, rutas).\n\n` +
-                `🚌 *Unidades y Registro Municipal:*\n  • \`!unidad\` ➔ Registrar / ver / editar unidades.\n  • \`!misunidades\` • \`!unidades\` ➔ Listados.\n  • \`!buscar [dato]\` ➔ Busca por disco, dueño, chasis o código.\n  • \`!historial [Disco]\` ➔ Rutas y fallas de una unidad.\n  • \`!relevo [Disco] [Suplente]\` • \`!mantenimiento\`\n  • \`!municipal\` • \`!municipal ocupados\` • \`!municipal libres\`\n\n` +
+                `🪪 *Licencias y perfil:*\n  • \`!licencia Nombre | Tipo | Disco1, Disco2\` ➔ Crea tu licencia (1 a 3 discos).\n  • \`!milicencia\` ➔ Vigencia y puntos.\n  • \`!borrarlicencia\` ➔ Elimina tu licencia.\n  • \`!perfil\` ➔ Tu resumen completo (saldo, multas, rutas).\n\n` +
+                `🚌 *Unidades y Registro Municipal:*\n  • \`!unidad\` ➔ Registrar / ver / editar unidades (máx. 3).\n  • \`!misunidades\` • \`!unidades\` ➔ Listados.\n  • \`!buscar [dato]\` ➔ Busca por disco, dueño, chasis o código.\n  • \`!historial [Disco]\` ➔ Rutas y fallas de una unidad.\n  • \`!relevo [Disco] [Suplente]\` • \`!mantenimiento\`\n  • \`!municipal\` • \`!municipal ocupados\` • \`!municipal libres\`\n\n` +
                 `🔧 *Fuera de servicio:*\n  • \`!fs [Disco] [motivo]\` ➔ Reporta falla.\n  • \`!operativo [Disco]\` • \`!fslista\`\n\n` +
                 `💰 *Economía, Multas y Tienda:*\n  • \`!saldo\` • \`!movimientos\` • \`!millonarios\`\n  • \`!mismultas\` • \`!pagar [ID]\` / \`!pagar todas\`\n  • \`!transferir [nombre] [monto]\` ➔ Ej: !transferir juan 2.50\n  • \`!tienda\` • \`!comprar [1-3]\`\n\n` +
                 `ℹ️ *Información:*\n  • \`!horarios\` • \`!reglas\` ➔ Tarifas y reglas.\n  • \`!hora\` ➔ Hora oficial y estado del bot.\n`;
@@ -1714,9 +1800,10 @@ async function procesarMensaje(sock, msg) {
                     `  • \`!abrir\` • \`!cerrar\` • \`!limpiar\` • \`!anuncio [texto]\`\n` +
                     `  • \`!retrasar [Disco] [min]\` • \`!intercambiar [A] [B]\` • \`!cerrardia\`\n` +
                     `  • \`!renovar [número]\` • \`!puntos [número] [n]\` • \`!vencimientos [días]\`\n` +
+                    `  • \`!limpiarlicencias\` ➔ Borra todas las licencias.\n` +
                     `  • \`!perfil [número]\` ➔ Perfil de otro conductor.\n` +
                     `  • \`!multar número | monto | motivo | puntos\`\n` +
-                    `  • \`!pagarmulta [ID]\` • \`!anularmulta [ID]\` • \`!morosos\`\n` +
+                    `  • \`!pagarmulta [ID]\` • \`!anularmulta [ID]\` • \`!limpiarmultas\` • \`!morosos\`\n` +
                     `  • \`!suspender [número] [motivo]\` • \`!habilitar [número]\` • \`!suspendidos\`\n` +
                     `  • \`!horario abrir|cerrar|auto\` • \`!intervalo [min]\`\n` +
                     `  • \`!fsforzar [Disco] [motivo]\` • \`!fshistorial\`\n` +
@@ -1727,6 +1814,7 @@ async function procesarMensaje(sock, msg) {
             menu += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
             return responder(menu);
         }
+
 
         case '!lista':
         case '!turnos': {
