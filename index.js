@@ -242,6 +242,237 @@ async function anunciar(texto) {
     }
 }
 
+// ============================================================
+// 🛡️ SISTEMAS NUEVOS: ESTADO, ANTI-SPAM, ANTI-CORRUPCIÓN Y REINICIO
+// ============================================================
+global.antiCorrupcionActivo = true;   // 🛡️ Escudo anti-admins corruptos (!anticorrupcion on/off)
+
+// ---------- Utilidades ----------
+const idBase = (j = '') => String(j || '').replace(/@.*$/, '').replace(/:.*$/, '');
+const idsDe = (x) => {
+    if (!x) return [];
+    if (typeof x === 'string') return [idBase(x)].filter(Boolean);
+    return [x.id, x.phoneNumber, x.lid, x.jid].map(idBase).filter(Boolean);
+};
+const hayInterseccion = (a, b) => { for (const x of a) if (b.has(x)) return true; return false; };
+// Amplía una lista de ids con los otros ids (número / LID) del mismo participante
+function idsConocidos(meta, base) {
+    const set = new Set(base);
+    for (const p of (meta?.participants || [])) {
+        const ids = idsDe(p);
+        if (ids.some(i => set.has(i))) ids.forEach(i => set.add(i));
+    }
+    return set;
+}
+function idsDelBot(sock) {
+    return [idBase(sock?.user?.id), idBase(sock?.user?.lid), NUMERO_ADMIN].filter(Boolean);
+}
+function idsDelDueno(meta) {
+    const base = [...idsDe(meta?.owner), ...idsDe(meta?.ownerPn)];
+    for (const p of (meta?.participants || [])) if (p.admin === 'superadmin') base.push(...idsDe(p));
+    return idsConocidos(meta, base);
+}
+
+// ---------- 📊 Estado del sistema (!botestado / !sistema) ----------
+function formatearUptime(segundos) {
+    let t = Math.floor(segundos);
+    const d = Math.floor(t / 86400); t -= d * 86400;
+    const h = Math.floor(t / 3600);  t -= h * 3600;
+    const m = Math.floor(t / 60);
+    const s = t - m * 60;
+    return `${d} día(s), ${h} h, ${m} min, ${s} s`;
+}
+
+// ---------- 🚦 Anti-spam de comandos ----------
+const SPAM_MAX_COMANDOS = 4;        // más de 4 comandos...
+const SPAM_VENTANA_MS = 10000;      // ...en menos de 10 segundos
+const registroSpam = new Map();     // senderNumber -> { marcas: [], bloqueadoHasta: 0 }
+
+// Devuelve 'ok' (deja pasar), 'aviso' (primer bloqueo: avisar una sola vez) o 'ignorar' (bloqueado, sin responder)
+function revisarSpamComandos(numero) {
+    const ahora = Date.now();
+    if (registroSpam.size > 500) {
+        for (const [k, v] of registroSpam) if (ahora > v.bloqueadoHasta && !v.marcas.some(t => ahora - t < SPAM_VENTANA_MS)) registroSpam.delete(k);
+    }
+    let r = registroSpam.get(numero);
+    if (!r) { r = { marcas: [], bloqueadoHasta: 0 }; registroSpam.set(numero, r); }
+    if (ahora < r.bloqueadoHasta) return 'ignorar';
+    r.marcas = r.marcas.filter(t => ahora - t < SPAM_VENTANA_MS);
+    if (r.marcas.length >= SPAM_MAX_COMANDOS) {
+        r.bloqueadoHasta = ahora + SPAM_VENTANA_MS;
+        r.marcas = [];
+        return 'aviso';
+    }
+    r.marcas.push(ahora);
+    return 'ok';
+}
+
+// ---------- 🧾 Freno de abuso de multas ----------
+const MULTAS_MAX_USOS = 3;          // más de 3 multas...
+const MULTAS_VENTANA_MS = 60000;    // ...en menos de 60 segundos
+const registroMultasAdmin = new Map(); // senderNumber -> { marcas: [], bloqueadoHasta: 0 }
+
+// Devuelve 'ok', 'abuso' (se acaba de superar el límite) o 'bloqueado' (ya estaba bloqueado)
+function revisarAbusoMultas(numero) {
+    const ahora = Date.now();
+    let r = registroMultasAdmin.get(numero);
+    if (!r) { r = { marcas: [], bloqueadoHasta: 0 }; registroMultasAdmin.set(numero, r); }
+    if (ahora < r.bloqueadoHasta) return 'bloqueado';
+    r.marcas = r.marcas.filter(t => ahora - t < MULTAS_VENTANA_MS);
+    r.marcas.push(ahora);
+    if (r.marcas.length > MULTAS_MAX_USOS) {
+        r.bloqueadoHasta = ahora + MULTAS_VENTANA_MS;
+        r.marcas = [];
+        return 'abuso';
+    }
+    return 'ok';
+}
+
+// ---------- ⬇️ Quitar admin (lo usan el anti-spam, el escudo y !quitaradmin) ----------
+async function degradarAdmin(sock, grupoJid, participanteJid) {
+    if (!sock || !grupoJid || !grupoJid.endsWith('@g.us') || !participanteJid) {
+        return { ok: false, razon: 'No estoy en un grupo.' };
+    }
+    if (!(await soyAdminDelGrupo(sock, grupoJid))) {
+        return { ok: false, razon: 'el bot no es administrador de este grupo.' };
+    }
+    try {
+        const res = await sock.groupParticipantsUpdate(grupoJid, [participanteJid], 'demote');
+        const estado = Array.isArray(res) ? res[0]?.status : null;
+        if (estado && String(estado) !== '200') return { ok: false, razon: `WhatsApp rechazó la acción (código ${estado}).` };
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, razon: e?.message || 'WhatsApp rechazó la acción.' };
+    }
+}
+
+// ---------- 🛡️ Escudo anti-admins corruptos ----------
+const ESCUDO_MAX_ACCIONES = 3;      // 3 o más expulsiones/degradaciones...
+const ESCUDO_VENTANA_MS = 60000;    // ...en menos de 60 segundos
+const accionesAdmins = new Map();   // `${grupo}:${actor}` -> [timestamps]
+
+function contarAccionesAdmin(grupoJid, actorBase, cantidad = 1) {
+    const ahora = Date.now();
+    if (accionesAdmins.size > 300) {
+        for (const [k, v] of accionesAdmins) if (!v.some(t => ahora - t < ESCUDO_VENTANA_MS)) accionesAdmins.delete(k);
+    }
+    const clave = `${grupoJid}:${actorBase}`;
+    const marcas = (accionesAdmins.get(clave) || []).filter(t => ahora - t < ESCUDO_VENTANA_MS);
+    for (let i = 0; i < cantidad; i++) marcas.push(ahora);
+    accionesAdmins.set(clave, marcas);
+    return marcas.length;
+}
+
+async function castigarAdminCorrupto(sock, grupoJid, autorJid, motivo) {
+    accionesAdmins.delete(`${grupoJid}:${idBase(autorJid)}`);
+    const r = await degradarAdmin(sock, grupoJid, autorJid);
+    const num = idBase(autorJid);
+    const texto =
+        `🚨🔴 *ALERTA ANTI-CORRUPCIÓN* 🔴🚨\n━━━━━━━━━━━━━━━━━━━━\n` +
+        `👮 El administrador @${num} ${motivo}.\n` +
+        (r.ok
+            ? `⬇️ El bot le *quitó el rango de administrador* automáticamente.\n`
+            : `⚠️ No pude quitarle el admin: ${r.razon}\n`) +
+        `━━━━━━━━━━━━━━━━━━━━\n🛡️ _Escudo anti-corrupción activo. Un administrador responsable debe revisar el caso._`;
+    try { await sock.sendMessage(grupoJid, { text: texto, mentions: [autorJid] }); }
+    catch (e) { console.log('No pude enviar la alerta anti-corrupción:', e.message); }
+    return r;
+}
+
+// Se llama desde el listener 'group-participants.update' ya existente (no crea otro listener)
+async function vigilarAdminsCorruptos(sock, evento) {
+    if (!global.antiCorrupcionActivo) return;
+    if (!evento || (evento.action !== 'remove' && evento.action !== 'demote')) return;
+    const grupoJid = evento.id;
+    if (!grupoJid || !grupoJid.endsWith('@g.us')) return;
+    const autorJid = evento.author || '';
+    if (!autorJid) return; // sin autor no se puede saber a quién culpar
+
+    const meta = await sock.groupMetadata(grupoJid);
+    const botIds = idsConocidos(meta, idsDelBot(sock));
+    const autorIds = idsConocidos(meta, [...idsDe(autorJid), ...idsDe(evento.authorPn)]);
+
+    if (hayInterseccion(autorIds, botIds)) return;           // lo hizo el propio bot
+    const duenoIds = idsDelDueno(meta);
+    if (hayInterseccion(autorIds, duenoIds)) return;         // lo hizo el creador original del grupo
+
+    // Ignora a quien salió por su cuenta (o se degradó a sí mismo)
+    const objetivos = (evento.participants || [])
+        .map(p => ({ ids: idsConocidos(meta, idsDe(p)) }))
+        .filter(o => o.ids.size && !hayInterseccion(o.ids, autorIds));
+    if (!objetivos.length) return;
+
+    const atacaBot = objetivos.some(o => hayInterseccion(o.ids, botIds));
+    const atacaDueno = objetivos.some(o => hayInterseccion(o.ids, duenoIds));
+    const total = contarAccionesAdmin(grupoJid, idBase(autorJid), objetivos.length);
+
+    if (atacaBot) return castigarAdminCorrupto(sock, grupoJid, autorJid, 'intentó expulsar o degradar al *bot*');
+    if (atacaDueno) return castigarAdminCorrupto(sock, grupoJid, autorJid, 'intentó expulsar o degradar al *dueño del grupo*');
+    if (total >= ESCUDO_MAX_ACCIONES) {
+        return castigarAdminCorrupto(sock, grupoJid, autorJid, `expulsó o degradó a *${total} personas* en menos de 60 segundos`);
+    }
+}
+
+// ---------- 🧨 Reinicio total de fábrica ----------
+function resumenDatosActuales() {
+    return {
+        licencias: Object.keys(conductoresDB).length,
+        unidades: Object.keys(datos.unidades).length,
+        municipal: Object.keys(datos.municipal.asignados).length,
+        multas: datos.multas.length,
+        billeteras: Object.keys(datos.billeteras).length,
+        movimientos: datos.movimientos.length,
+        turnos: E.turnos.length,
+        rutasActivas: Object.keys(E.viajes).length,
+        diasRutas: Object.keys(datos.rutasPorDia).length,
+        diasAtrasos: Object.keys(datos.atrasosPorDia).length,
+        historialFS: datos.historialFS.length,
+        fueraServicio: Object.keys(E.fs).length,
+        suspendidos: Object.keys(datos.suspendidos).length
+    };
+}
+
+function reiniciarDeFabrica() {
+    // Copia de seguridad por si fue un error (se sobrescribe en cada reinicio)
+    try { if (fs.existsSync(ARCHIVO_DB)) fs.copyFileSync(ARCHIVO_DB, ARCHIVO_DB + '.antes_reset.bak'); } catch (_) {}
+    try { if (fs.existsSync(ARCHIVO_DATOS)) fs.copyFileSync(ARCHIVO_DATOS, ARCHIVO_DATOS + '.antes_reset.bak'); } catch (_) {}
+
+    const antes = resumenDatosActuales();
+    const base = datosBase();
+
+    // Licencias y puntos (se vacía en el mismo objeto para no perder referencias)
+    for (const k of Object.keys(conductoresDB)) delete conductoresDB[k];
+
+    // Unidades, municipal, multas, economía, historial, suspendidos
+    datos.unidades = {};
+    datos.municipal.asignados = {};
+    datos.municipal.reiniciadoV2 = true;
+    datos.multas = [];
+    datos.contadorMultas = 0;
+    datos.billeteras = {};
+    datos.movimientos = [];
+    datos.contadorMov = 0;
+    datos.totales = { ...base.totales };
+    datos.rutasPorDia = {};
+    datos.atrasosPorDia = {};
+    datos.historialFS = [];
+    datos.suspendidos = {};
+
+    // Estado operativo (se modifica E en el mismo objeto)
+    E.turnos = [];
+    E.viajes = {};
+    E.fs = {};
+    E.ultimaSalida = null;
+    E.totalDespachos = 0;
+
+    // Solicitudes pendientes en memoria
+    for (const k of Object.keys(pendientesFS)) delete pendientesFS[k];
+
+    guardarDB();
+    guardarDatos();
+    return antes;
+}
+
 
 
 
@@ -680,6 +911,10 @@ async function connectToWhatsApp() {
         console.log('👥 EVENTO GRUPO:', JSON.stringify(evento));
         if (!(await soyAdminDelGrupo(sock, evento.id))) return;
 
+        // 🛡️ Escudo anti-admins corruptos (monitorea 'remove' y 'demote')
+        try { await vigilarAdminsCorruptos(sock, evento); }
+        catch (e) { console.log('Error en el escudo anti-corrupción:', e.message); }
+
         for (const p of evento.participants) {
             const participante = typeof p === 'string' ? p : (p.id || p.jid || '');
             if (!participante) continue;
@@ -710,6 +945,7 @@ async function connectToWhatsApp() {
 // 💬 PROCESAMIENTO DE MENSAJES
 // ============================================================
 async function procesarMensaje(sock, msg) {
+    const inicioProceso = Date.now(); // para medir el tiempo de respuesta (!botestado)
 
     if (!msg || !msg.message) return;
 
@@ -826,6 +1062,42 @@ async function procesarMensaje(sock, msg) {
         if (!r.length) return { error: `⚠️ No encontré ningún conductor con licencia llamado *${t}*.\n_Revisa el nombre o usa su número._` };
         return { error: `⚠️ Varios conductores coinciden con *${t}*:\n${r.slice(0, 6).map(x => `• ${x.nombre} (…${x.numero.slice(-4)})`).join('\n')}\n_Escribe el nombre completo o usa su número._` };
     };
+
+    // ==========================================
+    // 🚦 FILTRO ANTI-SPAM (antes de ejecutar cualquier comando)
+    // ==========================================
+    const veredictoSpam = revisarSpamComandos(senderNumber);
+    if (veredictoSpam === 'ignorar') return;
+    if (veredictoSpam === 'aviso') {
+        return responder(`⏳ *¡Más despacio, ${nombreConductor}!* Estás enviando comandos muy rápido.\nEspera *10 segundos* antes de volver a usar el bot.`);
+    }
+
+    // 🧾 Freno de abuso de multas: más de 3 en menos de 60 segundos
+    if (esAdmin && (comando === '!multar' || comando === '!multa')) {
+        const veredictoMultas = revisarAbusoMultas(senderNumber);
+        if (veredictoMultas === 'bloqueado') {
+            return responder('⛔ Comando de multas *bloqueado temporalmente* por abuso. Espera 60 segundos.');
+        }
+        if (veredictoMultas === 'abuso') {
+            const esPrincipal = senderNumber === NUMERO_ADMIN || msg.key.fromMe;
+            let r = { ok: false, razon: 'no aplica.' };
+            if (esGrupo && !esPrincipal) r = await degradarAdmin(sock, jid, senderJid);
+            const alerta =
+                `🚨🔴 *ABUSO DE MULTAS DETECTADO* 🔴🚨\n━━━━━━━━━━━━━━━━━━━━\n` +
+                `👮 @${idBase(senderJid)} intentó aplicar *más de ${MULTAS_MAX_USOS} multas en menos de 60 segundos*.\n` +
+                `⛔ El comando fue *bloqueado* de inmediato.\n` +
+                (esPrincipal
+                    ? `ℹ️ _Es el administrador principal: no se le quita el rango._\n`
+                    : !esGrupo
+                        ? ''
+                        : r.ok
+                            ? `⬇️ Se le *quitó el rango de administrador* automáticamente.\n`
+                            : `⚠️ No pude quitarle el admin: ${r.razon}\n`) +
+                `━━━━━━━━━━━━━━━━━━━━`;
+            try { return await sock.sendMessage(jid, { text: alerta, mentions: [senderJid] }); }
+            catch (e) { return responder(alerta); }
+        }
+    }
 
     switch (comando) {
 
@@ -1777,6 +2049,7 @@ async function procesarMensaje(sock, msg) {
                 `🔧 *Fuera de servicio:*\n  • \`!fs [Disco] [motivo]\` ➔ Reporta falla.\n  • \`!operativo [Disco]\` • \`!fslista\`\n\n` +
                 `💰 *Economía, Multas y Tienda:*\n  • \`!saldo\` • \`!movimientos\` • \`!millonarios\`\n  • \`!mismultas\` • \`!pagar [ID]\` / \`!pagar todas\`\n  • \`!transferir [nombre] [monto]\` ➔ Ej: !transferir juan 2.50\n  • \`!tienda\` • \`!comprar [1-3]\`\n\n` +
                 `ℹ️ *Información:*\n  • \`!horarios\` • \`!reglas\` ➔ Tarifas y reglas.\n  • \`!hora\` ➔ Hora oficial y estado del bot.\n`;
+            menu += `  • \`!botestado\` • \`!sistema\` ➔ Estado del bot: uptime, RAM, ping y base de datos.\n`;
             if (esAdmin) {
                 menu += `\n🛠️ *Solo admins:*\n` +
                     `  • \`!abrir\` • \`!cerrar\` • \`!limpiar\` • \`!anuncio [texto]\`\n` +
@@ -1792,6 +2065,10 @@ async function procesarMensaje(sock, msg) {
                     `  • \`!depositar [nombre] [monto]\` • \`!retirar [nombre] [monto]\`\n    \`!premio [nombre] [monto] [motivo]\`\n` +
                     `  • \`!tarifa\` • \`!bono\` • \`!sueldodiario\` • \`!economia\`\n` +
                     `  • \`!municipal asignar\` • \`!municipal reservar\` • \`!municipal liberar\` • \`!municipal limpiar\`\n`;
+                menu += `\n🛡️ *Seguridad y sistema (admins):*\n` +
+                    `  • \`!resetearbot confirmar\` ➔ ⚠️ Reinicio de fábrica: borra TODOS los datos (sin "confirmar" solo avisa).\n` +
+                    `  • \`!anticorrupcion on\` / \`!anticorrupcion off\` ➔ Escudo anti-admins corruptos.\n` +
+                    `  • \`!quitaradmin @usuario\` ➔ Quita el admin a alguien (alias \`!degradar\`).\n`;
             }
             menu += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
             return responder(menu);
@@ -2145,6 +2422,123 @@ async function procesarMensaje(sock, msg) {
             let t = `🔧 *ÚLTIMAS SOLICITUDES DE FUERA DE SERVICIO*\n━━━━━━━━━━━━━━━━━━━━\n`;
             lista.forEach(x => { t += `${x.aprobado ? '✅' : '❌'} *#${x.disco}* • ${x.nombre} _(${fechaHoraCorta(new Date(x.fecha))}, ${x.metodo})_\n   📝 ${x.motivo}\n`; });
             return responder(t.trim());
+        }
+
+        // ==========================================
+        // 🆕 SISTEMAS NUEVOS: ESTADO, REINICIO Y ANTI-CORRUPCIÓN
+        // ==========================================
+        case '!botestado':
+        case '!sistema': {
+            const mem = process.memoryUsage();
+            const ramMB = (mem.rss / 1048576).toFixed(1);
+            const heapMB = (mem.heapUsed / 1048576).toFixed(1);
+            const wsAbierto = (sock?.ws && typeof sock.ws.isOpen === 'boolean') ? sock.ws.isOpen : true;
+            const nLicencias = Object.keys(conductoresDB).length;
+            const nBuses = Object.keys(datos.unidades).length;
+            const nMultas = datos.multas.length;
+            const nMultasPend = datos.multas.filter(m => m.estado === 'pendiente').length;
+            const ms = Date.now() - inicioProceso;
+            return responder(
+                `🔴🟢🔵 *ESTADO DEL SISTEMA* 🔴🟢🔵\n━━━━━━━━━━━━━━━━━━━━\n` +
+                `📡 *Conexión:* ${wsAbierto ? '🟢 En línea' : '🔴 Sin conexión'}\n` +
+                `⏱️ *Tiempo activo:* ${formatearUptime(process.uptime())}\n` +
+                `🧠 *RAM usada:* ${ramMB} MB _(heap: ${heapMB} MB)_\n` +
+                `⚡ *Tiempo de respuesta:* ${ms} ms\n` +
+                `🛡️ *Anti-corrupción:* ${global.antiCorrupcionActivo ? '🟢 Activo' : '🔴 Apagado'}\n` +
+                `━━━━━━━━━━━━━━━━━━━━\n` +
+                `🪪 *Licencias:* ${nLicencias}\n` +
+                `🚌 *Buses (unidades):* ${nBuses}\n` +
+                `🧾 *Multas registradas:* ${nMultas} _(🔴 ${nMultasPend} pendientes)_\n` +
+                `━━━━━━━━━━━━━━━━━━━━`
+            );
+        }
+
+        case '!resetearbot':
+        case '!formatearbot': {
+            if (!esAdmin) return soloAdmin();
+            const confirmado = normalizar(args).trim() === 'confirmar';
+            if (!confirmado) {
+                const r = resumenDatosActuales();
+                return responder(
+                    `🚨🔴 *REINICIO TOTAL DE FÁBRICA* 🔴🚨\n━━━━━━━━━━━━━━━━━━━━\n` +
+                    `⚠️ *Esto BORRARÁ TODO y no se puede deshacer desde el bot:*\n` +
+                    `  • 🪪 Licencias y puntos (${r.licencias})\n` +
+                    `  • 🚌 Unidades / buses (${r.unidades})\n` +
+                    `  • 🏛️ Registro municipal (${r.municipal} códigos)\n` +
+                    `  • 🧾 Multas y contador de multas (${r.multas})\n` +
+                    `  • 💰 Billeteras, saldos y movimientos (${r.billeteras} billeteras / ${r.movimientos} mov.)\n` +
+                    `  • 🎫 Turnos en espera (${r.turnos}) y rutas activas (${r.rutasActivas})\n` +
+                    `  • 📊 Historial de rutas (${r.diasRutas} días) y atrasos (${r.diasAtrasos} días)\n` +
+                    `  • 🔧 Fuera de servicio (${r.fueraServicio}) e historial de fallas (${r.historialFS})\n` +
+                    `  • ⛔ Conductores suspendidos (${r.suspendidos})\n` +
+                    `━━━━━━━━━━━━━━━━━━━━\n` +
+                    `✅ Se conservan: configuración (tarifas, horarios), grupos registrados y la sesión de WhatsApp.\n\n` +
+                    `Para continuar escribe exactamente:\n👉 \`!resetearbot confirmar\``
+                );
+            }
+            const antes = reiniciarDeFabrica();
+            return responder(
+                `🔴🟢🔵 *BOT REINICIADO DE FÁBRICA* 🔴🟢🔵\n━━━━━━━━━━━━━━━━━━━━\n` +
+                `🗑️ Licencias: ${antes.licencias}\n🗑️ Unidades: ${antes.unidades}\n🗑️ Códigos municipales: ${antes.municipal}\n` +
+                `🗑️ Multas: ${antes.multas}\n🗑️ Billeteras: ${antes.billeteras} • Movimientos: ${antes.movimientos}\n` +
+                `🗑️ Turnos: ${antes.turnos} • Rutas activas: ${antes.rutasActivas}\n` +
+                `🗑️ Fuera de servicio: ${antes.fueraServicio} • Suspendidos: ${antes.suspendidos}\n` +
+                `━━━━━━━━━━━━━━━━━━━━\n✨ El bot quedó como nuevo.\n_(Se guardó una copia previa en archivos .antes_reset.bak)_`
+            );
+        }
+
+        case '!anticorrupcion':
+        case '!anticorrupción': {
+            if (!esAdmin) return soloAdmin();
+            const opcion = normalizar(args.split(/\s+/)[0] || '');
+            if (['on', 'activar', 'activo', 'encender'].includes(opcion)) {
+                global.antiCorrupcionActivo = true;
+                return responder('🛡️ *ESCUDO ANTI-CORRUPCIÓN: 🟢 ACTIVADO*\nSi un admin expulsa/degrada a 3 o más personas en 60 s, o ataca al bot o al dueño, el bot le quitará el admin.');
+            }
+            if (['off', 'desactivar', 'apagar', 'apagado'].includes(opcion)) {
+                global.antiCorrupcionActivo = false;
+                return responder('🛡️ *ESCUDO ANTI-CORRUPCIÓN: 🔴 APAGADO*\nEl bot ya no vigilará expulsiones ni degradaciones de admins.');
+            }
+            return responder(`🛡️ *Escudo anti-corrupción:* ${global.antiCorrupcionActivo ? '🟢 Activado' : '🔴 Apagado'}\n⚠️ Uso: \`!anticorrupcion on\` o \`!anticorrupcion off\``);
+        }
+
+        case '!quitaradmin':
+        case '!degradar': {
+            if (!esAdmin) return soloAdmin();
+            if (!esGrupo) return responder('⚠️ Este comando solo funciona dentro de un grupo.');
+            if (!mencionados.length) return responder('⚠️ Uso: `!quitaradmin @usuario`\n_Menciona a la persona a la que quieres quitarle el admin._');
+            if (!(await soyAdminDelGrupo(sock, jid))) return responder('⚠️ No puedo hacerlo: el bot no es administrador de este grupo.');
+
+            const objetivoJid = mencionados[0];
+            let meta;
+            try { meta = await sock.groupMetadata(jid); }
+            catch (e) { return responder('⚠️ No pude leer los datos del grupo. Intenta de nuevo.'); }
+
+            const objetivoIds = idsConocidos(meta, idsDe(objetivoJid));
+            if (hayInterseccion(objetivoIds, idsConocidos(meta, idsDelBot(sock)))) return responder('🚫 No puedo quitarle el admin al bot ni al administrador principal.');
+            if (hayInterseccion(objetivoIds, idsDelDueno(meta))) return responder('🚫 No se puede quitar el admin al dueño (creador) del grupo.');
+
+            const pObj = meta.participants.find(p => idsDe(p).some(i => objetivoIds.has(i)));
+            if (!pObj) return responder('⚠️ Esa persona no está en este grupo.');
+            if (pObj.admin !== 'admin' && pObj.admin !== 'superadmin') return responder(`ℹ️ @${idBase(objetivoJid)} no es administrador.`);
+
+            // El escudo también vigila a quien usa este comando para degradar en masa
+            const esPrincipal = senderNumber === NUMERO_ADMIN || msg.key.fromMe;
+            if (global.antiCorrupcionActivo && !esPrincipal) {
+                const total = contarAccionesAdmin(jid, idBase(senderJid), 1);
+                if (total >= ESCUDO_MAX_ACCIONES) {
+                    return castigarAdminCorrupto(sock, jid, senderJid, `intentó degradar a *${total} personas* en menos de 60 segundos`);
+                }
+            }
+
+            const r = await degradarAdmin(sock, jid, pObj.id || objetivoJid);
+            if (!r.ok) return responder(`⚠️ No pude quitarle el admin: ${r.razon}`);
+            try {
+                return await sock.sendMessage(jid, {
+                    text: `🔴🟢🔵 *ADMIN RETIRADO* 🔴🟢🔵\n━━━━━━━━━━━━━━━━━━━━\n⬇️ @${idBase(objetivoJid)} ya no es administrador.\n👮 Por: ${nombreConductor}`,
+                    mentions: [objetivoJid]
+                });
+            } catch (e) { return responder('✅ Admin retirado correctamente.'); }
         }
 
         default:
