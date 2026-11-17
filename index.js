@@ -1031,56 +1031,13 @@ async function procesarMensaje(sock, msg) {
                 if (faltan.length) return responder(`⚠️ Faltan datos: *${faltan.map(k => etiquetas[k]).join(', ')}*\n\n${AYUDA_UNIDAD}`);
                 if (!/^[\w-]{1,12}$/.test(c.registro)) return responder('⚠️ El *registro* solo puede tener letras, números y guiones (máx. 12).');
                 if (!anoValido(c.ano)) return responder('⚠️ Año inválido. Usa 4 dígitos, ej: *2024*.');
-                        case '!pagar': {
-            const arg = normalizar(args).replace('#', '').trim();
-            const esMia = (m) => m.numero === senderNumber || (perfil && normalizar(m.nombre) === normalizar(perfil.nombre));
-            const pendientes = datos.multas.filter(m => esMia(m) && m.estado === 'pendiente');
-            const saldo = billetera(senderNumber).saldo;
-
-            if (!arg) return responder(`⚠️ Uso: \`!pagar [ID]\` o \`!pagar todas\`\n💵 Tu saldo: *${dinero(saldo)}*`);
-
-            if (arg === 'todas' || arg === 'todo') {
-                if (!pendientes.length) return responder('✅ No tienes multas pendientes.');
-                const pagadas = [];
-                for (const m of pendientes) {
-                    if (billetera(senderNumber).saldo < m.monto) break;
-                    movimiento(senderNumber, 'multa', -m.monto, `Pago de multa #${m.id}`);
-                    m.estado = 'pagada';
-                    m.pagadoCon = 'saldo';
-                    m.cerradaPor = nombreConductor;
-                    m.fechaCierre = new Date().toISOString();
-                    datos.totales.multasCobradas = redondear(datos.totales.multasCobradas + m.monto);
-                    pagadas.push(m);
+                                      const unidadesDelUsuario = Object.values(datos.unidades).filter(
+                    x => x.registradoPor === senderNumber || normalizar(x.dueno) === normalizar(c.dueno)
+                );
+                if (unidadesDelUsuario.length >= 3) {
+                    return responder(`🚫 *LÍMITE ALCANZADO*\nYa tienes *${unidadesDelUsuario.length} unidades* registradas (máximo permitido: 3).\nElimina una con \`!unidad eliminar [registro]\` antes de registrar otra.`);
                 }
-                guardarDatos();
-                if (!pagadas.length) {
-                    const necesaria = pendientes.at(0).monto;
-                    return responder(`⚠️ *Saldo insuficiente.*\nTienes *${dinero(saldo)}* y la primera multa cuesta *${dinero(necesaria)}*.`);
-                }
-                const total = redondear(pagadas.reduce((s, m) => s + m.monto, 0));
-                return responder(
-                    `🔴🟢🔵 *MULTAS PAGADAS* 🔴🟢🔵\n━━━━━━━━━━━━━━━━━━━━\n${pagadas.map(m => `✅ #${m.id} — ${dinero(m.monto)}`).join('\n')}\n` +
-                    `━━━━━━━━━━━━━━━━━━━━\n💸 *Total pagado:* ${dinero(total)}\n💵 *Saldo:* ${dinero(billetera(senderNumber).saldo)}`);
-            }
 
-            const id = parseInt(arg, 10);
-            if (isNaN(id)) return responder('⚠️ Indica el número de ID de la multa o escribe `!pagar todas`.');
-            const m = datos.multas.find(x => x.id === id);
-            if (!m || !esMia(m)) return responder(`⚠️ No encontré ninguna multa tuya con el ID *#${id}*.`);
-            if (m.estado !== 'pendiente') return responder(`ℹ️ La multa #${id} ya está *${m.estado}*.`);
-            if (saldo < m.monto) {
-                return responder(`⚠️ *Saldo insuficiente.*\nLa multa #${id} cuesta *${dinero(m.monto)}* y tienes *${dinero(saldo)}*.`);
-            }
-
-            movimiento(senderNumber, 'multa', -m.monto, `Pago de multa #${m.id}`);
-            m.estado = 'pagada';
-            m.pagadoCon = 'saldo';
-            m.cerradaPor = nombreConductor;
-            m.fechaCierre = new Date().toISOString();
-            datos.totales.multasCobradas = redondear(datos.totales.multasCobradas + m.monto);
-            guardarDatos();
-            return responder(`🟢 *MULTA PAGADA* #${m.id}\n💵 Saldo restante: *${dinero(billetera(senderNumber).saldo)}*`);
-        }
 
                 if (datos.unidades[c.registro]) return responder(`⚠️ Ya existe una unidad con el registro *${c.registro}*.`);
                 const disco = (c.disco || '').replace('#', '').trim();
@@ -1522,17 +1479,32 @@ async function procesarMensaje(sock, msg) {
             return responder('⚠️ Opción inválida. Escribe `!tienda`.');
         }
 
-        case '!pagar': {
+              case '!pagar': {
             const arg = normalizar(args).replace('#', '').trim();
-            const pendientes = datos.multas.filter(m => m.numero === senderNumber && m.estado === 'pendiente');
+            const esMia = (m) => m.numero === senderNumber || (perfil && normalizar(m.nombre) === normalizar(perfil.nombre));
+            const pendientes = datos.multas.filter(m => esMia(m) && m.estado === 'pendiente');
             const saldo = billetera(senderNumber).saldo;
+
             if (!arg) return responder(`⚠️ Uso: \`!pagar [ID]\` o \`!pagar todas\`\n💵 Tu saldo: *${dinero(saldo)}*`);
 
             if (arg === 'todas' || arg === 'todo') {
                 if (!pendientes.length) return responder('✅ No tienes multas pendientes.');
-                const pagadas = pagarMultasPendientes(senderNumber, nombreConductor);
+                const pagadas = [];
+                for (const m of pendientes) {
+                    if (billetera(senderNumber).saldo < m.monto) break;
+                    movimiento(senderNumber, 'multa', -m.monto, `Pago de multa #${m.id}`);
+                    m.estado = 'pagada';
+                    m.pagadoCon = 'saldo';
+                    m.cerradaPor = nombreConductor;
+                    m.fechaCierre = new Date().toISOString();
+                    datos.totales.multasCobradas = redondear(datos.totales.multasCobradas + m.monto);
+                    pagadas.push(m);
+                }
                 guardarDatos();
-                if (!pagadas.length) return responder(`⚠️ Saldo insuficiente.`);
+                if (!pagadas.length) {
+                    const necesaria = pendientes.at(0).monto;
+                    return responder(`⚠️ *Saldo insuficiente.*\nTienes *${dinero(saldo)}* y la primera multa cuesta *${dinero(necesaria)}*.`);
+                }
                 const total = redondear(pagadas.reduce((s, m) => s + m.monto, 0));
                 return responder(
                     `🔴🟢🔵 *MULTAS PAGADAS* 🔴🟢🔵\n━━━━━━━━━━━━━━━━━━━━\n${pagadas.map(m => `✅ #${m.id} — ${dinero(m.monto)}`).join('\n')}\n` +
@@ -1540,12 +1512,22 @@ async function procesarMensaje(sock, msg) {
             }
 
             const id = parseInt(arg, 10);
+            if (isNaN(id)) return responder('⚠️ Indica el número de ID de la multa o escribe `!pagar todas`.');
             const m = datos.multas.find(x => x.id === id);
-            if (!m || m.numero !== senderNumber) return responder(`⚠️ No encontré multa tuya #${id}.`);
-            if (m.estado !== 'pendiente') return responder(`ℹ️ La multa #${id} ya está ${m.estado}.`);
-            if (!pagarMultaConSaldo(m, nombreConductor)) return responder(`⚠️ Saldo insuficiente.`);
+            if (!m || !esMia(m)) return responder(`⚠️ No encontré ninguna multa tuya con el ID *#${id}*.`);
+            if (m.estado !== 'pendiente') return responder(`ℹ️ La multa #${id} ya está *${m.estado}*.`);
+            if (saldo < m.monto) {
+                return responder(`⚠️ *Saldo insuficiente.*\nLa multa #${id} cuesta *${dinero(m.monto)}* y tienes *${dinero(saldo)}*.`);
+            }
+
+            movimiento(senderNumber, 'multa', -m.monto, `Pago de multa #${m.id}`);
+            m.estado = 'pagada';
+            m.pagadoCon = 'saldo';
+            m.cerradaPor = nombreConductor;
+            m.fechaCierre = new Date().toISOString();
+            datos.totales.multasCobradas = redondear(datos.totales.multasCobradas + m.monto);
             guardarDatos();
-            return responder(`🟢 *MULTA PAGADA* #${m.id}\n💵 Saldo: *${dinero(billetera(senderNumber).saldo)}*`);
+            return responder(`🟢 *MULTA PAGADA* #${m.id}\n💵 Saldo restante: *${dinero(billetera(senderNumber).saldo)}*`);
         }
 
         case '!transferir': {
