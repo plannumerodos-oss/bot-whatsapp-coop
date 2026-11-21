@@ -17,7 +17,7 @@ const askQuery = (query) => new Promise((resolve) => {
 // ============================================================
 // ⚙️ CONFIGURACIÓN
 // ============================================================
-const NUMERO_ADMIN = "593987811058";
+const NUMERO_ADMIN = "593958806253";
 const GRUPO_PERMITIDO = "120363436841810690@g.us";
 const ARCHIVO_DB = './conductores.json';  // Licencias
 const ARCHIVO_DATOS = './datos_bot.json'; // Unidades, multas, rutas, economía, municipal
