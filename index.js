@@ -8,7 +8,6 @@ const readline = require('readline');
 const fs = require('fs');
 const axios = require('axios');
 
-
 let rl = null;
 const askQuery = (query) => new Promise((resolve) => {
     if (!rl) rl = readline.createInterface({ input: process.stdin, output: process.stdout });
